@@ -16,8 +16,8 @@ export const safeProxyFactoryAbi = [
     type: 'event',
     name: 'ProxyCreation',
     inputs: [
-      { name: 'proxy', type: 'address', indexed: true },
-      { name: 'singleton', type: 'address', indexed: true }
+      { name: 'proxy', type: 'address', indexed: false },
+      { name: 'singleton', type: 'address', indexed: false }
     ],
     anonymous: false
   }

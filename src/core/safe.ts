@@ -1,18 +1,27 @@
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
-import { decodeEventLog, encodeFunctionData, zeroAddress } from 'viem'
+import { decodeEventLog, encodeFunctionData, getAddress, zeroAddress } from 'viem'
+import {
+  getMultiSendCallOnlyDeployment,
+  getProxyFactoryDeployment,
+  getSafeL2SingletonDeployment,
+  getSafeSingletonDeployment
+} from '@safe-global/safe-deployments'
+import type { SingletonDeployment } from '@safe-global/safe-deployments'
 
 import { safeAbi, safeProxyFactoryAbi } from '../utils/abis'
 import { normalizeSignature } from '../utils/signature'
-import type { PreparedSafeTransaction } from './types'
+import type { NonceManager, PreparedSafeTransaction } from './types'
 
 interface DeploySafeParams {
   walletClient: WalletClient
   publicClient: PublicClient
   ownerAddress: Address
   saltNonce?: bigint
-  singletonAddress: Address
-  factoryAddress: Address
+  singletonAddress?: Address
+  factoryAddress?: Address
   multiSendAddress?: Address
+  logger?: (message: string) => void
+  nonceManager?: NonceManager
 }
 
 interface DeploySafeResult {
@@ -28,12 +37,50 @@ export const deploySafe = async ({
   saltNonce,
   singletonAddress,
   factoryAddress,
-  multiSendAddress
+  multiSendAddress,
+  logger,
+  nonceManager
 }: DeploySafeParams): Promise<DeploySafeResult> => {
   const account = walletClient.account
   if (!account) {
     throw new Error('Wallet client must have an active account')
   }
+
+  const chainId = walletClient.chain?.id ?? (await walletClient.getChainId())
+  const network = chainId.toString()
+  const log = logger ?? (() => {})
+
+  const resolveDeploymentAddress = (deployment?: SingletonDeployment) => {
+    if (!deployment) {
+      return undefined
+    }
+    const address = deployment.networkAddresses[network] ?? deployment.defaultAddress
+    return address ? getAddress(address) : undefined
+  }
+
+  const resolvedSingleton =
+    singletonAddress ??
+    resolveDeploymentAddress(
+      getSafeL2SingletonDeployment({ network }) ?? getSafeSingletonDeployment({ network }) ?? undefined
+    )
+
+  if (!resolvedSingleton) {
+    throw new Error(`No Safe singleton deployment found for chain ${chainId}`)
+  }
+
+  const resolvedFactory =
+    factoryAddress ?? resolveDeploymentAddress(getProxyFactoryDeployment({ network }) ?? undefined)
+
+  if (!resolvedFactory) {
+    throw new Error(`No Safe proxy factory deployment found for chain ${chainId}`)
+  }
+
+  const resolvedMultiSend =
+    multiSendAddress ?? resolveDeploymentAddress(getMultiSendCallOnlyDeployment({ network }) ?? undefined)
+
+  log(
+    `   • Safe deployments resolved (chain ${chainId}) => singleton=${resolvedSingleton}, factory=${resolvedFactory}, multiSend=${resolvedMultiSend ?? 'auto'}`
+  )
 
   const initializer = encodeFunctionData({
     abi: safeAbi,
@@ -53,27 +100,45 @@ export const deploySafe = async ({
   const nonce =
     saltNonce ?? BigInt(Date.now()) << 32n | BigInt(Math.floor(Math.random() * 1e6))
 
+  log(`   • Sending createProxyWithNonce (nonce=${nonce})`)
+  const txNonce = nonceManager?.consumeNonce()
+  if (typeof txNonce === 'number') {
+    log(`     - EOA nonce ${txNonce}`)
+  }
   const txHash = await walletClient.writeContract({
-    address: factoryAddress,
+    address: resolvedFactory,
     abi: safeProxyFactoryAbi,
     functionName: 'createProxyWithNonce',
-    args: [singletonAddress, initializer, nonce],
+    args: [resolvedSingleton, initializer, nonce],
     account,
-    chain: walletClient.chain
+    chain: walletClient.chain,
+    nonce: txNonce
   })
+  log(`   • Safe deployment tx hash ${txHash}`)
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+  log(`   • Safe deployment receipt status ${receipt.status} contractAddress=${receipt.contractAddress}`)
 
   let safeAddress: Address | undefined
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== factoryAddress.toLowerCase()) {
+  const normalizedFactory = resolvedFactory.toLowerCase()
+
+  receipt.logs.forEach((receiptLog, index) => {
+    log(
+      `     - Inspecting log #${index} address=${receiptLog.address} topic0=${
+        receiptLog.topics[0] ?? '0x'
+      }`
+    )
+  })
+
+  for (const receiptLog of receipt.logs) {
+    if (receiptLog.address.toLowerCase() !== normalizedFactory) {
       continue
     }
     try {
       const decoded = decodeEventLog({
         abi: safeProxyFactoryAbi,
-        data: log.data,
-        topics: log.topics
+        data: receiptLog.data,
+        topics: receiptLog.topics
       })
       if (decoded.eventName === 'ProxyCreation') {
         const args = decoded.args
@@ -88,10 +153,27 @@ export const deploySafe = async ({
   }
 
   if (!safeAddress) {
-    throw new Error('Safe proxy creation event not found in transaction receipt')
+    if (receipt.contractAddress) {
+      try {
+        safeAddress = getAddress(receipt.contractAddress)
+      } catch (error) {
+        // fall through to throw below
+      }
+    }
   }
 
-  return { safeAddress, transactionHash: txHash, multiSendCallOnly: multiSendAddress }
+  if (!safeAddress) {
+    log(
+      `   • ProxyCreation event not found in receipt (logs inspected: ${receipt.logs.length}). Verify SAFE_PROXY_FACTORY_ADDRESS, SAFE_SINGLETON_ADDRESS, and gas sufficiency.`
+    )
+    throw new Error(
+      'Safe proxy creation event not found in transaction receipt. Verify SAFE_PROXY_FACTORY_ADDRESS, SAFE_SINGLETON_ADDRESS, and gas sufficiency.'
+    )
+  }
+
+  log(`   • Safe proxy address ${safeAddress}`)
+
+  return { safeAddress, transactionHash: txHash, multiSendCallOnly: resolvedMultiSend }
 }
 
 interface PrepareSafeTransactionParams {
@@ -161,26 +243,34 @@ interface ExecuteSafeTransactionParams {
   publicClient: PublicClient
   safeAddress: Address
   transaction: PreparedSafeTransaction
+  nonceManager?: NonceManager
 }
 
 export const executeSafeTransaction = async ({
   walletClient,
   publicClient,
   safeAddress,
-  transaction
+  transaction,
+  nonceManager
 }: ExecuteSafeTransactionParams): Promise<Hex> => {
   const account = walletClient.account
   if (!account) {
     throw new Error('Wallet client must have an active account')
   }
 
-  const signature = await walletClient.signMessage({
-    account,
-    message: { raw: transaction.hash }
-  })
+  const accountWithSign = account as typeof account & {
+    sign?: (parameters: { hash: Hex }) => Promise<Hex>
+  }
+  const rawSignature = accountWithSign.sign
+    ? await accountWithSign.sign({ hash: transaction.hash })
+    : await walletClient.signMessage({
+        account,
+        message: { raw: transaction.hash }
+      })
 
-  const normalizedSignature = normalizeSignature(signature)
+  const normalizedSignature = normalizeSignature(rawSignature)
 
+  const txNonce = nonceManager?.consumeNonce()
   const txHash = await walletClient.writeContract({
     address: safeAddress,
     abi: safeAbi,
@@ -198,7 +288,8 @@ export const executeSafeTransaction = async ({
       normalizedSignature
     ],
     account,
-    chain: walletClient.chain
+    chain: walletClient.chain,
+    nonce: txNonce
   })
 
   await publicClient.waitForTransactionReceipt({ hash: txHash })

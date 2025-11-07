@@ -1,4 +1,5 @@
 import type { Address, Chain } from 'viem'
+import { getAddress } from 'viem'
 
 import { OnboardingClient } from './core/onboarding-client'
 import type { DeploymentResult, OnboardingConfig, OnboardClientParams } from './core/types'
@@ -29,19 +30,49 @@ export const createOnboardingClientFromEnv = (params: {
     batch: params.batchRpc
   })
 
+  const requiredAddress = (value: string | undefined, label: string): Address => {
+    if (!value) {
+      throw new Error(`${label} must be defined in .env`)
+    }
+    return toAddress(value, label)
+  }
+
+  const toAddress = (value: string, label: string): Address => {
+    try {
+      return getAddress(value.trim())
+    } catch (error) {
+      throw new Error(`${label} must be a valid checksummed address`)
+    }
+  }
+
+  const optionalAddress = (value: string | undefined, label: string): Address | undefined =>
+    value ? toAddress(value, label) : undefined
+
   return new OnboardingClient({
     walletClient,
     publicClient,
     p2pApiUrl: env.P2P_API_URL,
     p2pApiToken: env.P2P_API_TOKEN,
-    p2pAddress: env.P2P_ADDRESS as Address,
-    p2pSuperformProxyFactoryAddress: env.P2P_SUPERFORM_PROXY_FACTORY_ADDRESS as Address,
-    rolesMasterCopyAddress: env.ROLES_MASTER_COPY_ADDRESS as Address,
-    rolesIntegrityLibraryAddress: env.ROLES_INTEGRITY_LIBRARY_ADDRESS as Address,
-    rolesPackerLibraryAddress: env.ROLES_PACKER_LIBRARY_ADDRESS as Address,
-    safeSingletonAddress: env.SAFE_SINGLETON_ADDRESS as Address,
-    safeProxyFactoryAddress: env.SAFE_PROXY_FACTORY_ADDRESS as Address,
-    safeMultiSendCallOnlyAddress: env.SAFE_MULTI_SEND_CALL_ONLY_ADDRESS as Address
+    p2pAddress: requiredAddress(env.P2P_ADDRESS, 'P2P_ADDRESS'),
+    p2pSuperformProxyFactoryAddress: requiredAddress(
+      env.P2P_SUPERFORM_PROXY_FACTORY_ADDRESS,
+      'P2P_SUPERFORM_PROXY_FACTORY_ADDRESS'
+    ),
+    rolesMasterCopyAddress: requiredAddress(env.ROLES_MASTER_COPY_ADDRESS, 'ROLES_MASTER_COPY_ADDRESS'),
+    rolesIntegrityLibraryAddress: requiredAddress(
+      env.ROLES_INTEGRITY_LIBRARY_ADDRESS,
+      'ROLES_INTEGRITY_LIBRARY_ADDRESS'
+    ),
+    rolesPackerLibraryAddress: requiredAddress(
+      env.ROLES_PACKER_LIBRARY_ADDRESS,
+      'ROLES_PACKER_LIBRARY_ADDRESS'
+    ),
+    safeSingletonAddress: optionalAddress(env.SAFE_SINGLETON_ADDRESS, 'SAFE_SINGLETON_ADDRESS'),
+    safeProxyFactoryAddress: optionalAddress(env.SAFE_PROXY_FACTORY_ADDRESS, 'SAFE_PROXY_FACTORY_ADDRESS'),
+    safeMultiSendCallOnlyAddress: optionalAddress(
+      env.SAFE_MULTI_SEND_CALL_ONLY_ADDRESS,
+      'SAFE_MULTI_SEND_CALL_ONLY_ADDRESS'
+    )
   })
 }
 

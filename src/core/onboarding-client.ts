@@ -10,6 +10,7 @@ import { fetchFeeConfig, predictP2pProxyAddress } from './p2p'
 import type {
   DeploymentResult,
   FeeConfig,
+  NonceManager,
   OnboardClientParams,
   OnboardingConfig
 } from './types'
@@ -20,9 +21,11 @@ const DEFAULT_ROLE_KEY = keccak256(stringToHex('P2P_SUPERFORM_ROLE')) as Hex
 
 export class OnboardingClient {
   private readonly config: OnboardingConfig
+  private readonly log: (message: string) => void
 
   constructor(config: OnboardingConfig) {
     this.config = config
+    this.log = config.logger ?? ((message: string) => console.info(message))
   }
 
   private async resolveFeeConfig(client: Address): Promise<FeeConfig> {
@@ -43,6 +46,20 @@ export class OnboardingClient {
     }
 
     const clientAddress = params.clientAddress ?? (account.address as Address)
+    this.log(`➡️  Onboarding client ${clientAddress}`)
+
+    let nextNonce = await this.config.publicClient.getTransactionCount({
+      address: account.address,
+      blockTag: 'pending'
+    })
+    const nonceManager: NonceManager = {
+      consumeNonce: () => {
+        const current = nextNonce
+        nextNonce += 1
+        return current
+      },
+      peekNonce: () => nextNonce
+    }
 
     const { safeAddress, transactionHash: safeDeploymentHash } = await deploySafe({
       walletClient: this.config.walletClient,
@@ -51,8 +68,11 @@ export class OnboardingClient {
       saltNonce: this.config.safeSaltNonce,
       singletonAddress: this.config.safeSingletonAddress,
       factoryAddress: this.config.safeProxyFactoryAddress,
-      multiSendAddress: this.config.safeMultiSendCallOnlyAddress
+      multiSendAddress: this.config.safeMultiSendCallOnlyAddress,
+      logger: this.log,
+      nonceManager
     })
+    this.log(`✅  Safe deployed at ${safeAddress}`)
 
     const { rolesAddress, transactionHash: rolesDeploymentHash } = await deployRolesModule({
       walletClient: this.config.walletClient,
@@ -60,10 +80,16 @@ export class OnboardingClient {
       masterCopy: this.config.rolesMasterCopyAddress,
       ownerAddress: clientAddress,
       safeAddress,
-      saltNonce: this.config.rolesSaltNonce
+      saltNonce: this.config.rolesSaltNonce,
+      logger: this.log,
+      nonceManager
     })
+    this.log(`✅  Roles module deployed at ${rolesAddress}`)
 
     const feeConfig = await this.resolveFeeConfig(clientAddress)
+    this.log(
+      `ℹ️  Using fee configuration deposit=${feeConfig.clientBasisPointsOfDeposit}bps profit=${feeConfig.clientBasisPointsOfProfit}bps`
+    )
 
     const predictedProxyAddress = await predictP2pProxyAddress({
       publicClient: this.config.publicClient,
@@ -72,6 +98,7 @@ export class OnboardingClient {
       depositBps: feeConfig.clientBasisPointsOfDeposit,
       profitBps: feeConfig.clientBasisPointsOfProfit
     })
+    this.log(`ℹ️  Predicted P2P Superform proxy ${predictedProxyAddress}`)
 
     const roleKey = DEFAULT_ROLE_KEY as Hex
 
@@ -82,7 +109,9 @@ export class OnboardingClient {
       roleKey,
       p2pModuleAddress: this.config.p2pAddress,
       factoryAddress: this.config.p2pSuperformProxyFactoryAddress,
-      predictedProxyAddress
+      predictedProxyAddress,
+      logger: this.log,
+      nonceManager
     })
 
     const enableModuleCalldata = encodeFunctionData({
@@ -91,6 +120,7 @@ export class OnboardingClient {
       args: [rolesAddress]
     })
 
+    this.log(`➡️  Enabling Roles module ${rolesAddress} on Safe ${safeAddress}`)
     const preparedTx = await prepareSafeTransaction({
       publicClient: this.config.publicClient,
       safeAddress,
@@ -104,8 +134,10 @@ export class OnboardingClient {
       walletClient: this.config.walletClient,
       publicClient: this.config.publicClient,
       safeAddress,
-      transaction: preparedTx
+      transaction: preparedTx,
+      nonceManager
     })
+    this.log(`✅  Roles module enabled via Safe tx ${safeModuleEnableHash}`)
 
     return {
       safeAddress,

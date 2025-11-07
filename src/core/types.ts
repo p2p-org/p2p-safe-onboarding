@@ -30,13 +30,14 @@ export interface OnboardingConfig extends WalletContext {
   rolesMasterCopyAddress: Address
   rolesIntegrityLibraryAddress: Address
   rolesPackerLibraryAddress: Address
-  safeSingletonAddress: Address
-  safeProxyFactoryAddress: Address
+  safeSingletonAddress?: Address
+  safeProxyFactoryAddress?: Address
   safeMultiSendCallOnlyAddress?: Address
   chainId?: number
   feeConfigFetcher?: (params: { client: Address }) => Promise<FeeConfig>
   safeSaltNonce?: bigint
   rolesSaltNonce?: bigint
+  logger?: (message: string) => void
 }
 
 export interface OnboardClientParams {
@@ -68,5 +69,10 @@ export interface PreparedSafeTransaction {
   refundReceiver: Address
   nonce: bigint
   hash: Hex
+}
+
+export interface NonceManager {
+  consumeNonce: () => number
+  peekNonce: () => number
 }
 

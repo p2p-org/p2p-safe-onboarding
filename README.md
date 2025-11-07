@@ -4,7 +4,7 @@ TypeScript helpers for automating P2P.org client onboarding:
 
 - Deploy a single-owner Safe for the client
 - Instantiate the Zodiac Roles modifier
-- Fetch P2P fee configuration and deterministically predict the client's `P2pSuperformProxy`
+- Fetch (or temporarily mock) P2P fee configuration and deterministically predict the client's `P2pSuperformProxy`
 - Configure Roles so `P2P_ADDRESS` can only call the `deposit` function on the factory and the `withdraw` function on the predicted proxy
 
 The package targets Node 18+/Browser environments with [viem](https://viem.sh/).
@@ -29,6 +29,10 @@ P2P_SUPERFORM_PROXY_FACTORY_ADDRESS=
 ROLES_MASTER_COPY_ADDRESS=
 ROLES_INTEGRITY_LIBRARY_ADDRESS=
 ROLES_PACKER_LIBRARY_ADDRESS=
+# optional overrides (auto-resolved per chain if empty)
+SAFE_SINGLETON_ADDRESS=
+SAFE_PROXY_FACTORY_ADDRESS=
+SAFE_MULTI_SEND_CALL_ONLY_ADDRESS=
 ```
 
 ## Quick start (backend)
@@ -47,6 +51,19 @@ async function main() {
 }
 
 main().catch(console.error)
+```
+
+### Verbose logging
+
+Provide a `logger` function to capture SDK progress messages:
+
+```ts
+const onboarding = new OnboardingClient({
+  walletClient,
+  publicClient,
+  // …rest of config…
+  logger: (message) => console.debug('[onboarding]', message)
+})
 ```
 
 ## Custom wiring (frontend / serverless)
@@ -83,5 +100,6 @@ npm run build
 
 - The SDK assumes Safe v1.3 deployments. Override the configuration if you need different versions or custom deployments.
 - `onboardClient` executes live transactions (deploy Safe, deploy Roles, configure roles, enable module). Ensure the wallet has enough funds to cover gas.
+- Until the P2P API is available, fee terms default to deposit `0` bps and profit share `9700` bps.
 - Transactions are executed sequentially; future iterations can batch Safe configuration via MultiSend.
 

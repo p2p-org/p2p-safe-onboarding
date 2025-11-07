@@ -3,6 +3,11 @@ import type { Address, PublicClient } from 'viem'
 import { p2pSuperformProxyFactoryAbi } from '../utils/abis'
 import type { FeeConfig } from './types'
 
+const FALLBACK_FEE_CONFIG: FeeConfig = {
+  clientBasisPointsOfDeposit: 0,
+  clientBasisPointsOfProfit: 9700
+}
+
 interface FetchFeeConfigParams {
   apiUrl: string
   client: Address
@@ -14,32 +19,41 @@ export const fetchFeeConfig = async ({
   client,
   apiToken
 }: FetchFeeConfigParams): Promise<FeeConfig> => {
-  const url = new URL(apiUrl)
-  url.searchParams.set('client', client)
+  // Temporary fallback while the P2P API is not available.
+  if (!apiUrl || apiUrl === 'dummy') {
+    return FALLBACK_FEE_CONFIG
+  }
 
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {})
+  try {
+    const url = new URL(apiUrl)
+    url.searchParams.set('client', client)
+
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {})
+      }
+    })
+
+    if (!response.ok) {
+      return FALLBACK_FEE_CONFIG
     }
-  })
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch P2P fee config: ${response.status} ${response.statusText}`)
-  }
+    const payload = (await response.json()) as Partial<FeeConfig>
 
-  const payload = (await response.json()) as Partial<FeeConfig>
+    if (
+      typeof payload.clientBasisPointsOfDeposit !== 'number' ||
+      typeof payload.clientBasisPointsOfProfit !== 'number'
+    ) {
+      return FALLBACK_FEE_CONFIG
+    }
 
-  if (
-    typeof payload.clientBasisPointsOfDeposit !== 'number' ||
-    typeof payload.clientBasisPointsOfProfit !== 'number'
-  ) {
-    throw new Error('P2P fee config payload is missing required fields')
-  }
-
-  return {
-    clientBasisPointsOfDeposit: payload.clientBasisPointsOfDeposit,
-    clientBasisPointsOfProfit: payload.clientBasisPointsOfProfit
+    return {
+      clientBasisPointsOfDeposit: payload.clientBasisPointsOfDeposit,
+      clientBasisPointsOfProfit: payload.clientBasisPointsOfProfit
+    }
+  } catch (error) {
+    return FALLBACK_FEE_CONFIG
   }
 }
 
