@@ -5,17 +5,20 @@ import {
   executeSafeTransaction,
   prepareSafeTransaction
 } from './safe'
-import { deployRolesModule, configureRolesPermissions } from './roles'
+import { prepareRolesModuleDeployment, prepareRolesPermissions } from './roles'
 import { fetchFeeConfig, predictP2pProxyAddress } from './p2p'
 import type {
   DeploymentResult,
   FeeConfig,
   NonceManager,
   OnboardClientParams,
-  OnboardingConfig
+  OnboardingConfig,
+  SafeContractCall
 } from './types'
-import { safeAbi } from '../utils/abis'
+import { SafeTransactionOperation } from './types'
+import { safeAbi, multiSendCallOnlyAbi } from '../utils/abis'
 import { encodeFunctionData } from 'viem'
+import { encodeMultiSendCallData } from '../utils/multisend'
 
 const DEFAULT_ROLE_KEY = keccak256(stringToHex('P2P_SUPERFORM_ROLE')) as Hex
 
@@ -61,7 +64,7 @@ export class OnboardingClient {
       peekNonce: () => nextNonce
     }
 
-    const { safeAddress, transactionHash: safeDeploymentHash } = await deploySafe({
+    const { safeAddress, transactionHash: safeDeploymentHash, multiSendCallOnly } = await deploySafe({
       walletClient: this.config.walletClient,
       publicClient: this.config.publicClient,
       ownerAddress: clientAddress,
@@ -74,17 +77,22 @@ export class OnboardingClient {
     })
     this.log(`✅  Safe deployed at ${safeAddress}`)
 
-    const { rolesAddress, transactionHash: rolesDeploymentHash } = await deployRolesModule({
-      walletClient: this.config.walletClient,
-      publicClient: this.config.publicClient,
+    if (!multiSendCallOnly) {
+      throw new Error('Could not resolve MultiSendCallOnly address for Safe transaction batching')
+    }
+
+    const {
+      rolesAddress,
+      deploymentCall,
+      saltNonce: rolesSaltNonce
+    } = prepareRolesModuleDeployment({
       masterCopy: this.config.rolesMasterCopyAddress,
-      ownerAddress: clientAddress,
+      ownerAddress: safeAddress,
       safeAddress,
       saltNonce: this.config.rolesSaltNonce,
-      logger: this.log,
-      nonceManager
+      logger: this.log
     })
-    this.log(`✅  Roles module deployed at ${rolesAddress}`)
+    this.log(`✅  Roles deployment prepared (saltNonce=${rolesSaltNonce}) -> ${rolesAddress}`)
 
     const feeConfig = await this.resolveFeeConfig(clientAddress)
     this.log(
@@ -102,42 +110,55 @@ export class OnboardingClient {
 
     const roleKey = DEFAULT_ROLE_KEY as Hex
 
-    const roleConfigurationHashes = await configureRolesPermissions({
-      walletClient: this.config.walletClient,
-      publicClient: this.config.publicClient,
+    const permissionCalls = prepareRolesPermissions({
       rolesAddress,
       roleKey,
       p2pModuleAddress: this.config.p2pAddress,
       factoryAddress: this.config.p2pSuperformProxyFactoryAddress,
       predictedProxyAddress,
-      logger: this.log,
-      nonceManager
+      logger: this.log
     })
 
-    const enableModuleCalldata = encodeFunctionData({
-      abi: safeAbi,
-      functionName: 'enableModule',
-      args: [rolesAddress]
+    const enableModuleCall: SafeContractCall = {
+      to: safeAddress,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: safeAbi,
+        functionName: 'enableModule',
+        args: [rolesAddress]
+      }),
+      operation: SafeTransactionOperation.Call
+    }
+
+    const batchedCalls = [deploymentCall, ...permissionCalls, enableModuleCall]
+    const encodedTransactions = encodeMultiSendCallData(batchedCalls)
+    const multiSendData = encodeFunctionData({
+      abi: multiSendCallOnlyAbi,
+      functionName: 'multiSend',
+      args: [encodedTransactions]
     })
 
-    this.log(`➡️  Enabling Roles module ${rolesAddress} on Safe ${safeAddress}`)
+    this.log(
+      `➡️  Executing batched Roles setup via MultiSendCallOnly ${multiSendCallOnly} (${batchedCalls.length} calls)`
+    )
+
     const preparedTx = await prepareSafeTransaction({
       publicClient: this.config.publicClient,
       safeAddress,
-      to: safeAddress,
-      data: enableModuleCalldata,
+      to: multiSendCallOnly,
+      data: multiSendData,
       value: 0n,
-      operation: 0
+      operation: SafeTransactionOperation.DelegateCall
     })
 
-    const safeModuleEnableHash = await executeSafeTransaction({
+    const rolesSetupHash = await executeSafeTransaction({
       walletClient: this.config.walletClient,
       publicClient: this.config.publicClient,
       safeAddress,
       transaction: preparedTx,
       nonceManager
     })
-    this.log(`✅  Roles module enabled via Safe tx ${safeModuleEnableHash}`)
+    this.log(`✅  Roles deployment, permissions & enablement executed via Safe tx ${rolesSetupHash}`)
 
     return {
       safeAddress,
@@ -145,10 +166,8 @@ export class OnboardingClient {
       predictedProxyAddress,
       roleKey,
       transactions: {
-        safeDeploymentHash,
-        rolesDeploymentHash,
-        safeModuleEnableHash,
-        roleConfigurationHashes
+        safeDeployment: safeDeploymentHash,
+        rolesSetup: rolesSetupHash
       }
     }
   }

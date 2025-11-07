@@ -193,11 +193,27 @@ export const prepareSafeTransaction = async ({
   value = 0n,
   operation = 0
 }: PrepareSafeTransactionParams): Promise<PreparedSafeTransaction> => {
-  const nonce = (await publicClient.readContract({
-    address: safeAddress,
-    abi: safeAbi,
-    functionName: 'nonce'
-  })) as bigint
+  let nonce: bigint | undefined
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      nonce = (await publicClient.readContract({
+        address: safeAddress,
+        abi: safeAbi,
+        functionName: 'nonce'
+      })) as bigint
+      break
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!message.includes('ContractFunctionZeroDataError') || attempt === 2) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+
+  if (nonce === undefined) {
+    throw new Error('Unable to read Safe nonce after retries')
+  }
 
   const safeTxGas = 0n
   const baseGas = 0n

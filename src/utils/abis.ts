@@ -243,3 +243,13 @@ export const rolesExecutionOptions = {
   Both: 3
 } as const
 
+export const multiSendCallOnlyAbi = [
+  {
+    type: 'function',
+    name: 'multiSend',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'transactions', type: 'bytes' }],
+    outputs: []
+  }
+] as const satisfies Abi
+

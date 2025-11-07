@@ -22,6 +22,18 @@ export interface FeeConfig {
   clientBasisPointsOfProfit: number
 }
 
+export enum SafeTransactionOperation {
+  Call = 0,
+  DelegateCall = 1
+}
+
+export interface SafeContractCall {
+  to: Address
+  value?: bigint
+  data: Hex
+  operation?: SafeTransactionOperation
+}
+
 export interface OnboardingConfig extends WalletContext {
   p2pApiUrl: string
   p2pApiToken?: string
@@ -50,10 +62,8 @@ export interface DeploymentResult {
   predictedProxyAddress: Address
   roleKey: Hex
   transactions: {
-    safeDeploymentHash: Hex
-    rolesDeploymentHash: Hex
-    safeModuleEnableHash: Hex
-    roleConfigurationHashes: Hex[]
+    safeDeployment: Hex
+    rolesSetup: Hex
   }
 }
 

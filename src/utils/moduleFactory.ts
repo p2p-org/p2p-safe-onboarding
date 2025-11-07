@@ -1,4 +1,5 @@
-import { getCreate2Address, keccak256 } from 'viem'
+import type { Address, Hex } from 'viem'
+import { concatHex, encodePacked, getCreate2Address, keccak256 } from 'viem'
 
 const ERC2470_SINGLETON_FACTORY = '0xce0042b868300000d44a59004da54a005ffdcf9f'
 const ZODIAC_MODULE_PROXY_FACTORY_SALT =
@@ -14,4 +15,36 @@ export const getZodiacModuleProxyFactoryAddress = () =>
     salt: ZODIAC_MODULE_PROXY_FACTORY_SALT as `0x${string}`,
     bytecodeHash: keccak256(ZODIAC_MODULE_PROXY_FACTORY_BYTECODE)
   })
+
+const MODULE_PROXY_CREATION_CODE_PREFIX = '0x602d8060093d393df3363d3d373d3d3d363d73'
+const MODULE_PROXY_CREATION_CODE_SUFFIX = '5af43d82803e903d91602b57fd5bf3'
+
+const getModuleProxyCreationCode = (masterCopy: Address): Hex =>
+  concatHex([
+    MODULE_PROXY_CREATION_CODE_PREFIX,
+    masterCopy,
+    `0x${MODULE_PROXY_CREATION_CODE_SUFFIX}`
+  ])
+
+export const predictModuleProxyAddress = ({
+  factoryAddress,
+  masterCopy,
+  initializer,
+  saltNonce
+}: {
+  factoryAddress: Address
+  masterCopy: Address
+  initializer: Hex
+  saltNonce: bigint
+}): Address => {
+  const salt = keccak256(
+    encodePacked(['bytes32', 'uint256'], [keccak256(initializer), saltNonce])
+  )
+
+  return getCreate2Address({
+    from: factoryAddress,
+    salt,
+    bytecodeHash: keccak256(getModuleProxyCreationCode(masterCopy))
+  })
+}
 
