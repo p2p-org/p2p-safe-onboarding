@@ -1,0 +1,60 @@
+{
+  "name": "@p2p-org/safe-onboarding-sdk",
+  "version": "0.1.0",
+  "description": "P2P.org Safe onboarding SDK for delegating Superform access via Zodiac Roles",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.mjs",
+      "require": "./dist/adapters.cjs"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.mjs",
+      "require": "./dist/config.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "prepare": "tsc --noEmit"
+  },
+  "keywords": [
+    "safe",
+    "zodiac",
+    "roles",
+    "superform",
+    "p2p"
+  ],
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "viem": "^2.9.8",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.10.0",
+    "@typescript-eslint/parser": "^7.10.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "@types/node": "^20.16.11",
+    "tsup": "^8.0.2",
+    "typescript": "^5.6.3"
+  }
+}
+
