@@ -17,23 +17,25 @@ npm install @p2p-org/safe-onboarding-sdk
 
 ## Environment
 
-Copy `.env.sample` to `.env` and fill in the values (addresses are checksummed strings):
+Copy `.env.sample` to `.env` and fill in the values:
 
 ```
 RPC_URL=
 PRIVATE_KEY=
-P2P_API_URL=
 P2P_API_TOKEN=
-P2P_ADDRESS=
-P2P_SUPERFORM_PROXY_FACTORY_ADDRESS=
-ROLES_MASTER_COPY_ADDRESS=
-ROLES_INTEGRITY_LIBRARY_ADDRESS=
-ROLES_PACKER_LIBRARY_ADDRESS=
-# optional overrides (auto-resolved per chain if empty)
-SAFE_SINGLETON_ADDRESS=
-SAFE_PROXY_FACTORY_ADDRESS=
-SAFE_MULTI_SEND_CALL_ONLY_ADDRESS=
 ```
+
+The SDK ships with canonical contract addresses baked in and re-exports them from `@p2p-org/safe-onboarding-sdk/constants`:
+
+- `P2P_ADDRESS = 0x588ede4403DF0082C5ab245b35F0f79EB2d8033a`
+- `P2P_SUPERFORM_PROXY_FACTORY_ADDRESS = 0x931F03069Bbac8cAb236D548bEB5b3eFcb4f1769`
+- `ROLES_MASTER_COPY_ADDRESS = 0x9646fDAD06d3e24444381f44362a3B0eB343D337`
+- `ROLES_INTEGRITY_LIBRARY_ADDRESS = 0x6a6Af4b16458Bc39817e4019fB02BD3b26d41049`
+- `ROLES_PACKER_LIBRARY_ADDRESS = 0x61C5B1bE435391fDd7BC6703F3740C0d11728a8C`
+- `SAFE_SINGLETON_ADDRESS = 0xd9Db270c1B5E3Bd161E8c8503c55ceABeE709552`
+- `SAFE_PROXY_FACTORY_ADDRESS = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2`
+- `SAFE_MULTI_SEND_CALL_ONLY_ADDRESS = 0x40A2aCCbd92BCA938b02010E17A5b8929b49130D`
+- `P2P_API_URL = https://api.p2p.org/clients`
 
 ## Quick start (backend)
 
@@ -71,7 +73,7 @@ const onboarding = new OnboardingClient({
 ```ts
 import { base } from 'viem/chains'
 import { createWalletClient, http } from 'viem'
-import { OnboardingClient } from '@p2p-org/safe-onboarding-sdk'
+import { OnboardingClient, constants } from '@p2p-org/safe-onboarding-sdk'
 
 const walletClient = /* wagmi or WalletConnect wallet client */
 const publicClient = /* viem public client for the same chain */
@@ -79,12 +81,12 @@ const publicClient = /* viem public client for the same chain */
 const onboarding = new OnboardingClient({
   walletClient,
   publicClient,
-  p2pApiUrl: 'https://api.p2p.org/clients',
-  p2pAddress: '0x...',
-  p2pSuperformProxyFactoryAddress: '0x...',
-  rolesMasterCopyAddress: '0x...',
-  rolesIntegrityLibraryAddress: '0x...',
-  rolesPackerLibraryAddress: '0x...'
+  p2pApiUrl: constants.P2P_API_URL,
+  p2pAddress: constants.P2P_ADDRESS,
+  p2pSuperformProxyFactoryAddress: constants.P2P_SUPERFORM_PROXY_FACTORY_ADDRESS,
+  rolesMasterCopyAddress: constants.ROLES_MASTER_COPY_ADDRESS,
+  rolesIntegrityLibraryAddress: constants.ROLES_INTEGRITY_LIBRARY_ADDRESS,
+  rolesPackerLibraryAddress: constants.ROLES_PACKER_LIBRARY_ADDRESS
 })
 
 await onboarding.onboardClient({ clientAddress: walletClient.account.address })

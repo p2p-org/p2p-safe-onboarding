@@ -30,13 +30,6 @@ export const createOnboardingClientFromEnv = (params: {
     batch: params.batchRpc
   })
 
-  const requiredAddress = (value: string | undefined, label: string): Address => {
-    if (!value) {
-      throw new Error(`${label} must be defined in .env`)
-    }
-    return toAddress(value, label)
-  }
-
   const toAddress = (value: string, label: string): Address => {
     try {
       return getAddress(value.trim())
@@ -45,32 +38,29 @@ export const createOnboardingClientFromEnv = (params: {
     }
   }
 
-  const optionalAddress = (value: string | undefined, label: string): Address | undefined =>
-    value ? toAddress(value, label) : undefined
-
   return new OnboardingClient({
     walletClient,
     publicClient,
-    p2pApiUrl: env.P2P_API_URL,
+    p2pApiUrl: constants.P2P_API_URL,
     p2pApiToken: env.P2P_API_TOKEN,
-    p2pAddress: requiredAddress(env.P2P_ADDRESS, 'P2P_ADDRESS'),
-    p2pSuperformProxyFactoryAddress: requiredAddress(
-      env.P2P_SUPERFORM_PROXY_FACTORY_ADDRESS,
+    p2pAddress: toAddress(constants.P2P_ADDRESS, 'P2P_ADDRESS'),
+    p2pSuperformProxyFactoryAddress: toAddress(
+      constants.P2P_SUPERFORM_PROXY_FACTORY_ADDRESS,
       'P2P_SUPERFORM_PROXY_FACTORY_ADDRESS'
     ),
-    rolesMasterCopyAddress: requiredAddress(env.ROLES_MASTER_COPY_ADDRESS, 'ROLES_MASTER_COPY_ADDRESS'),
-    rolesIntegrityLibraryAddress: requiredAddress(
-      env.ROLES_INTEGRITY_LIBRARY_ADDRESS,
+    rolesMasterCopyAddress: toAddress(constants.ROLES_MASTER_COPY_ADDRESS, 'ROLES_MASTER_COPY_ADDRESS'),
+    rolesIntegrityLibraryAddress: toAddress(
+      constants.ROLES_INTEGRITY_LIBRARY_ADDRESS,
       'ROLES_INTEGRITY_LIBRARY_ADDRESS'
     ),
-    rolesPackerLibraryAddress: requiredAddress(
-      env.ROLES_PACKER_LIBRARY_ADDRESS,
+    rolesPackerLibraryAddress: toAddress(
+      constants.ROLES_PACKER_LIBRARY_ADDRESS,
       'ROLES_PACKER_LIBRARY_ADDRESS'
     ),
-    safeSingletonAddress: optionalAddress(env.SAFE_SINGLETON_ADDRESS, 'SAFE_SINGLETON_ADDRESS'),
-    safeProxyFactoryAddress: optionalAddress(env.SAFE_PROXY_FACTORY_ADDRESS, 'SAFE_PROXY_FACTORY_ADDRESS'),
-    safeMultiSendCallOnlyAddress: optionalAddress(
-      env.SAFE_MULTI_SEND_CALL_ONLY_ADDRESS,
+    safeSingletonAddress: toAddress(constants.SAFE_SINGLETON_ADDRESS, 'SAFE_SINGLETON_ADDRESS'),
+    safeProxyFactoryAddress: toAddress(constants.SAFE_PROXY_FACTORY_ADDRESS, 'SAFE_PROXY_FACTORY_ADDRESS'),
+    safeMultiSendCallOnlyAddress: toAddress(
+      constants.SAFE_MULTI_SEND_CALL_ONLY_ADDRESS,
       'SAFE_MULTI_SEND_CALL_ONLY_ADDRESS'
     )
   })
