@@ -11,6 +11,11 @@ export default defineConfig({
   clean: true,
   dts: true,
   minify: false,
-  target: 'es2021'
+  target: 'es2021',
+  outExtension({ format }) {
+    return {
+      js: format === 'esm' ? '.mjs' : '.cjs'
+    }
+  }
 })
 

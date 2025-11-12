@@ -1,4 +1,4 @@
-import { Hex, hexToBigInt, hexToBytes, padHex, toHex } from 'viem'
+import { Hex, hexToBytes, padHex, toHex } from 'viem'
 
 export interface SignatureParts {
   r: Hex

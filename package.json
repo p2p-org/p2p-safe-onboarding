@@ -1,6 +1,6 @@
 {
-  "name": "@p2p-org/safe-onboarding-sdk",
-  "version": "0.1.0",
+  "name": "@alexander-biryukov-p2p-org/safe-onboarding-sdk",
+  "version": "0.0.1-rc",
   "description": "P2P.org Safe onboarding SDK for delegating Superform access via Zodiac Roles",
   "license": "MIT",
   "type": "module",
@@ -25,14 +25,18 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "prepare": "tsc --noEmit"
+    "prepare": "tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run build"
   },
   "keywords": [
     "safe",
@@ -56,5 +60,8 @@
     "eslint-plugin-import": "^2.29.1",
     "tsup": "^8.0.2",
     "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
