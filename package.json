@@ -1,12 +1,16 @@
 {
-  "name": "@alexander-biryukov-p2p-org/safe-onboarding-sdk",
-  "version": "0.0.2-rc",
+  "name": "@p2p-org/safe-onboarding-sdk",
+  "version": "1.0.0",
   "description": "P2P.org Safe onboarding SDK for delegating Superform access via Zodiac Roles",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/p2p-org/p2p-safe-onboarding.git"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
