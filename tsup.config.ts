@@ -1,16 +1,17 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: {
-    index: 'src/index.ts',
-    adapters: 'src/adapters/index.ts',
-    config: 'src/config/index.ts',
-  },
+  entry: ['src/index.ts'],
   format: ['esm', 'cjs'],
-  sourcemap: true,
+  sourcemap: false,
   clean: true,
-  dts: true,
+  dts: false,
   minify: false,
-  target: 'es2021'
+  target: 'es2021',
+  outExtension({ format }) {
+    return {
+      js: format === 'esm' ? '.mjs' : '.cjs'
+    }
+  }
 })
 
