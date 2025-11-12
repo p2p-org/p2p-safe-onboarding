@@ -1,6 +1,6 @@
 {
   "name": "@alexander-biryukov-p2p-org/safe-onboarding-sdk",
-  "version": "0.0.1-rc",
+  "version": "0.0.2-rc",
   "description": "P2P.org Safe onboarding SDK for delegating Superform access via Zodiac Roles",
   "license": "MIT",
   "type": "module",
@@ -12,16 +12,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    },
-    "./adapters": {
-      "types": "./dist/adapters.d.ts",
-      "import": "./dist/adapters.mjs",
-      "require": "./dist/adapters.cjs"
-    },
-    "./config": {
-      "types": "./dist/config.d.ts",
-      "import": "./dist/config.mjs",
-      "require": "./dist/config.cjs"
     }
   },
   "files": [
@@ -31,7 +21,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --project tsconfig.declarations.json",
     "dev": "tsup --watch",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",

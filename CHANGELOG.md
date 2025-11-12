@@ -9,4 +9,5 @@ All notable changes to this project will be documented in this file.
 - Automated Safe deployment, Zodiac Roles module setup, and MultiSend batching for a single execution flow.
 - Built-in canonical contract addresses and mocked fee configuration fallback.
 - Demo runner (`scripts/demo.mjs`) showcasing the full onboarding sequence and logging of resulting transactions.
+- Slimmed npm bundle (≈22 kB) by generating declarations with `tsc` and removing duplicate build artifacts.
 
