@@ -1,10 +1,6 @@
-import { Address, Hex, keccak256, stringToHex } from 'viem'
+import { Address, Hex, encodeFunctionData, keccak256, stringToHex } from 'viem'
 
-import {
-  deploySafe,
-  executeSafeTransaction,
-  prepareSafeTransaction
-} from './safe'
+import { deploySafe, executeSafeTransaction, prepareSafeTransaction } from './safe'
 import { prepareRolesModuleDeployment, prepareRolesPermissions } from './roles'
 import { fetchFeeConfig, predictP2pProxyAddress } from './p2p'
 import type {
@@ -17,7 +13,6 @@ import type {
 } from './types'
 import { SafeTransactionOperation } from './types'
 import { safeAbi, multiSendCallOnlyAbi } from '../utils/abis'
-import { encodeFunctionData } from 'viem'
 import { encodeMultiSendCallData } from '../utils/multisend'
 import * as constants from '../constants'
 

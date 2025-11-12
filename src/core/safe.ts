@@ -1,5 +1,5 @@
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
-import { decodeEventLog, encodeFunctionData, getAddress, zeroAddress } from 'viem'
+import { decodeEventLog, encodeFunctionData, getAddress, padHex, zeroAddress } from 'viem'
 import {
   getMultiSendCallOnlyDeployment,
   getProxyFactoryDeployment,
@@ -9,7 +9,10 @@ import {
 import type { SingletonDeployment } from '@safe-global/safe-deployments'
 
 import { safeAbi, safeProxyFactoryAbi } from '../utils/abis'
-import { normalizeSignature } from '../utils/signature'
+import {
+  isContractFunctionZeroDataError,
+  normalizeContractFunctionZeroDataError
+} from '../utils/errors'
 import type { NonceManager, PreparedSafeTransaction } from './types'
 
 interface DeploySafeParams {
@@ -59,7 +62,9 @@ export const deploySafe = async ({
   }
 
   const resolvedSingleton =
-    singletonAddress ??
+    singletonAddress
+      ? getAddress(singletonAddress)
+      :
     resolveDeploymentAddress(
       getSafeL2SingletonDeployment({ network }) ?? getSafeSingletonDeployment({ network }) ?? undefined
     )
@@ -69,14 +74,14 @@ export const deploySafe = async ({
   }
 
   const resolvedFactory =
-    factoryAddress ?? resolveDeploymentAddress(getProxyFactoryDeployment({ network }) ?? undefined)
+    factoryAddress ? getAddress(factoryAddress) : resolveDeploymentAddress(getProxyFactoryDeployment({ network }) ?? undefined)
 
   if (!resolvedFactory) {
     throw new Error(`No Safe proxy factory deployment found for chain ${chainId}`)
   }
 
   const resolvedMultiSend =
-    multiSendAddress ?? resolveDeploymentAddress(getMultiSendCallOnlyDeployment({ network }) ?? undefined)
+    multiSendAddress ? getAddress(multiSendAddress) : resolveDeploymentAddress(getMultiSendCallOnlyDeployment({ network }) ?? undefined)
 
   log(
     `   • Safe deployments resolved (chain ${chainId}) => singleton=${resolvedSingleton}, factory=${resolvedFactory}, multiSend=${resolvedMultiSend ?? 'auto'}`
@@ -203,9 +208,11 @@ export const prepareSafeTransaction = async ({
       })) as bigint
       break
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (!message.includes('ContractFunctionZeroDataError') || attempt === 2) {
+      if (!isContractFunctionZeroDataError(error)) {
         throw error
+      }
+      if (attempt === 2) {
+        throw normalizeContractFunctionZeroDataError(error)
       }
       await new Promise((resolve) => setTimeout(resolve, 500))
     }
@@ -274,17 +281,10 @@ export const executeSafeTransaction = async ({
     throw new Error('Wallet client must have an active account')
   }
 
-  const accountWithSign = account as typeof account & {
-    sign?: (parameters: { hash: Hex }) => Promise<Hex>
-  }
-  const rawSignature = accountWithSign.sign
-    ? await accountWithSign.sign({ hash: transaction.hash })
-    : await walletClient.signMessage({
-        account,
-        message: { raw: transaction.hash }
-      })
-
-  const normalizedSignature = normalizeSignature(rawSignature)
+  const ownerAddress = getAddress(account.address)
+  const r = padHex(ownerAddress, { size: 32 })
+  const s = padHex('0x', { size: 32 })
+  const approvedHashSignature = (`0x${r.slice(2)}${s.slice(2)}01`) as Hex
 
   const txNonce = nonceManager?.consumeNonce()
   const txHash = await walletClient.writeContract({
@@ -301,7 +301,7 @@ export const executeSafeTransaction = async ({
       transaction.gasPrice,
       transaction.gasToken,
       transaction.refundReceiver,
-      normalizedSignature
+      approvedHashSignature
     ],
     account,
     chain: walletClient.chain,

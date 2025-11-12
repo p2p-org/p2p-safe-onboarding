@@ -2,7 +2,7 @@
 
 import { base } from 'viem/chains'
 
-import { createOnboardingClientFromEnv } from '../dist/index.js'
+import { createOnboardingClientFromEnv } from '../dist/index.mjs'
 
 const main = async () => {
   const onboarding = createOnboardingClientFromEnv({ chain: base })
