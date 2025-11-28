@@ -1,6 +1,6 @@
 {
   "name": "@p2p-org/safe-onboarding-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "P2P.org Safe onboarding SDK for delegating Superform access via Zodiac Roles",
   "license": "MIT",
   "type": "module",

@@ -232,6 +232,30 @@ export const p2pSuperformProxyAbi = [
   }
 ] as const satisfies Abi
 
+export const erc20Abi = [
+  {
+    type: 'function',
+    name: 'transfer',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    type: 'function',
+    name: 'transferFrom',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  }
+] as const satisfies Abi
+
 export const p2pSuperformProxyFactoryFunctions = {
   deposit: 'function deposit(bytes,uint48,uint48,uint256,bytes)'
 }
@@ -252,4 +276,3 @@ export const multiSendCallOnlyAbi = [
     outputs: []
   }
 ] as const satisfies Abi
-

@@ -34,6 +34,42 @@ export interface SafeContractCall {
   operation?: SafeTransactionOperation
 }
 
+export interface TokenTransfer {
+  address: Address
+  amount: bigint | number | string
+}
+
+export interface DeploySafeParams {
+  clientAddress?: Address
+}
+
+export interface DeploySafeResult {
+  safeAddress: Address
+  transactionHash: Hex
+  multiSendCallOnly?: Address
+}
+
+export interface SetPermissionsParams {
+  safeAddress?: Address
+  clientAddress?: Address
+  multiSendCallOnlyAddress?: Address
+}
+
+export interface SetPermissionsResult {
+  rolesAddress: Address
+  predictedProxyAddress: Address
+  roleKey: Hex
+  transactionHash: Hex
+}
+
+export interface TransferAssetParams extends TokenTransfer {
+  safeAddress?: Address
+}
+
+export interface TransferAssetResult {
+  transactionHash: Hex
+}
+
 export interface OnboardingConfig extends WalletContext {
   p2pApiUrl?: string
   p2pApiToken?: string
@@ -54,6 +90,7 @@ export interface OnboardingConfig extends WalletContext {
 
 export interface OnboardClientParams {
   clientAddress?: Address
+  tokenTransfers?: TokenTransfer[]
 }
 
 export interface DeploymentResult {
@@ -64,6 +101,7 @@ export interface DeploymentResult {
   transactions: {
     safeDeployment: Hex
     rolesSetup: Hex
+    assetTransfers?: Hex[]
   }
 }
 
@@ -85,4 +123,3 @@ export interface NonceManager {
   consumeNonce: () => number
   peekNonce: () => number
 }
-

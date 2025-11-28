@@ -1,18 +1,28 @@
 import { Address, Hex, encodeFunctionData, keccak256, stringToHex } from 'viem'
 
-import { deploySafe, executeSafeTransaction, prepareSafeTransaction } from './safe'
+import {
+  deploySafe as deploySafeContract,
+  executeSafeTransaction,
+  prepareSafeTransaction
+} from './safe'
 import { prepareRolesModuleDeployment, prepareRolesPermissions } from './roles'
 import { fetchFeeConfig, predictP2pProxyAddress } from './p2p'
 import type {
   DeploymentResult,
+  DeploySafeParams,
+  DeploySafeResult,
   FeeConfig,
-  NonceManager,
   OnboardClientParams,
   OnboardingConfig,
-  SafeContractCall
+  SafeContractCall,
+  SetPermissionsParams,
+  SetPermissionsResult,
+  TokenTransfer,
+  TransferAssetParams,
+  TransferAssetResult
 } from './types'
 import { SafeTransactionOperation } from './types'
-import { safeAbi, multiSendCallOnlyAbi } from '../utils/abis'
+import { erc20Abi, multiSendCallOnlyAbi, safeAbi } from '../utils/abis'
 import { encodeMultiSendCallData } from '../utils/multisend'
 import * as constants from '../constants'
 
@@ -35,6 +45,8 @@ export class OnboardingClient {
   > &
     OnboardingConfig
   private readonly log: (message: string) => void
+  private lastSafeAddress?: Address
+  private lastMultiSendCallOnly?: Address
 
   constructor(config: OnboardingConfig) {
     this.config = {
@@ -67,29 +79,44 @@ export class OnboardingClient {
     })
   }
 
-  async onboardClient(params: OnboardClientParams = {}): Promise<DeploymentResult> {
+  private normalizeTokenAmount(amount: TokenTransfer['amount']): bigint {
+    if (typeof amount === 'bigint') {
+      return amount
+    }
+    if (typeof amount === 'number') {
+      if (!Number.isFinite(amount) || !Number.isInteger(amount)) {
+        throw new Error('Token transfer amount must be an integer')
+      }
+      if (!Number.isSafeInteger(amount)) {
+        this.log(
+          '⚠️  Token transfer amount exceeds JS safe integer range; supply a string or bigint for exact precision'
+        )
+      }
+      return BigInt(amount)
+    }
+    if (typeof amount === 'string') {
+      const normalized = amount.trim()
+      if (!normalized) {
+        throw new Error('Token transfer amount cannot be empty')
+      }
+      if (!/^(0x)?[0-9a-fA-F]+$/.test(normalized)) {
+        throw new Error('Token transfer amount must be a numeric string')
+      }
+      return BigInt(normalized)
+    }
+    throw new Error('Token transfer amount must be a bigint, number, or numeric string')
+  }
+
+  async deploySafe(params: DeploySafeParams = {}): Promise<DeploySafeResult> {
     const account = this.config.walletClient.account
     if (!account) {
       throw new Error('Wallet client must have an active account')
     }
 
     const clientAddress = params.clientAddress ?? (account.address as Address)
-    this.log(`➡️  Onboarding client ${clientAddress}`)
+    this.log(`➡️  Deploying Safe for owner ${clientAddress}`)
 
-    let nextNonce = await this.config.publicClient.getTransactionCount({
-      address: account.address,
-      blockTag: 'pending'
-    })
-    const nonceManager: NonceManager = {
-      consumeNonce: () => {
-        const current = nextNonce
-        nextNonce += 1
-        return current
-      },
-      peekNonce: () => nextNonce
-    }
-
-    const { safeAddress, transactionHash: safeDeploymentHash, multiSendCallOnly } = await deploySafe({
+    const result = await deploySafeContract({
       walletClient: this.config.walletClient,
       publicClient: this.config.publicClient,
       ownerAddress: clientAddress,
@@ -97,14 +124,43 @@ export class OnboardingClient {
       singletonAddress: this.config.safeSingletonAddress,
       factoryAddress: this.config.safeProxyFactoryAddress,
       multiSendAddress: this.config.safeMultiSendCallOnlyAddress,
-      logger: this.log,
-      nonceManager
+      logger: this.log
     })
-    this.log(`✅  Safe deployed at ${safeAddress}`)
+
+    this.lastSafeAddress = result.safeAddress
+    this.lastMultiSendCallOnly = result.multiSendCallOnly
+    this.log(`✅  Safe deployed at ${result.safeAddress}`)
+
+    return {
+      safeAddress: result.safeAddress,
+      transactionHash: result.transactionHash,
+      multiSendCallOnly: result.multiSendCallOnly
+    }
+  }
+
+  async setPermissions(params: SetPermissionsParams = {}): Promise<SetPermissionsResult> {
+    const account = this.config.walletClient.account
+    if (!account) {
+      throw new Error('Wallet client must have an active account')
+    }
+
+    const safeAddress = params.safeAddress ?? this.lastSafeAddress
+    if (!safeAddress) {
+      throw new Error('Safe address is required; call deploySafe() first or provide safeAddress')
+    }
+    this.lastSafeAddress = safeAddress
+
+    const clientAddress = params.clientAddress ?? (account.address as Address)
+    const multiSendCallOnly =
+      params.multiSendCallOnlyAddress ??
+      this.lastMultiSendCallOnly ??
+      this.config.safeMultiSendCallOnlyAddress
 
     if (!multiSendCallOnly) {
       throw new Error('Could not resolve MultiSendCallOnly address for Safe transaction batching')
     }
+
+    this.log(`➡️  Configuring Roles for Safe ${safeAddress}`)
 
     const {
       rolesAddress,
@@ -176,25 +232,88 @@ export class OnboardingClient {
       operation: SafeTransactionOperation.DelegateCall
     })
 
-    const rolesSetupHash = await executeSafeTransaction({
+    const transactionHash = await executeSafeTransaction({
       walletClient: this.config.walletClient,
       publicClient: this.config.publicClient,
       safeAddress,
-      transaction: preparedTx,
-      nonceManager
+      transaction: preparedTx
     })
-    this.log(`✅  Roles deployment, permissions & enablement executed via Safe tx ${rolesSetupHash}`)
+    this.log(`✅  Roles deployment, permissions & enablement executed via Safe tx ${transactionHash}`)
+
+    return {
+      rolesAddress,
+      predictedProxyAddress,
+      roleKey,
+      transactionHash
+    }
+  }
+
+  async transferAsset(params: TransferAssetParams): Promise<TransferAssetResult> {
+    const account = this.config.walletClient.account
+    if (!account) {
+      throw new Error('Wallet client must have an active account')
+    }
+
+    const safeAddress = params.safeAddress ?? this.lastSafeAddress
+    if (!safeAddress) {
+      throw new Error('Safe address is required; call deploySafe() first or provide safeAddress')
+    }
+
+    const amount = this.normalizeTokenAmount(params.amount)
+    this.log(`➡️  Transferring token ${params.address} -> Safe ${safeAddress} amount=${amount}`)
+
+    const transactionHash = await this.config.walletClient.writeContract({
+      address: params.address,
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [safeAddress, amount],
+      account,
+      chain: this.config.walletClient.chain
+    })
+
+    await this.config.publicClient.waitForTransactionReceipt({ hash: transactionHash })
+    this.log(`✅  Transfer confirmed: ${transactionHash}`)
+
+    return { transactionHash }
+  }
+
+  async onboardClient(
+    paramsOrTokenTransfers: OnboardClientParams | TokenTransfer[] = {}
+  ): Promise<DeploymentResult> {
+    const params: OnboardClientParams = Array.isArray(paramsOrTokenTransfers)
+      ? { tokenTransfers: paramsOrTokenTransfers }
+      : paramsOrTokenTransfers ?? {}
+
+    const { safeAddress, transactionHash: safeDeployment, multiSendCallOnly } = await this.deploySafe(
+      { clientAddress: params.clientAddress }
+    )
+    const { rolesAddress, predictedProxyAddress, roleKey, transactionHash: rolesSetup } =
+      await this.setPermissions({
+        safeAddress,
+        clientAddress: params.clientAddress,
+        multiSendCallOnlyAddress: multiSendCallOnly
+      })
+
+    const assetTransfers: Hex[] = []
+    for (const transfer of params.tokenTransfers ?? []) {
+      const { transactionHash } = await this.transferAsset({ ...transfer, safeAddress })
+      assetTransfers.push(transactionHash)
+    }
+
+    const transactions: DeploymentResult['transactions'] = {
+      safeDeployment,
+      rolesSetup
+    }
+    if (assetTransfers.length > 0) {
+      transactions.assetTransfers = assetTransfers
+    }
 
     return {
       safeAddress,
       rolesAddress,
       predictedProxyAddress,
       roleKey,
-      transactions: {
-        safeDeployment: safeDeploymentHash,
-        rolesSetup: rolesSetupHash
-      }
+      transactions
     }
   }
 }
-

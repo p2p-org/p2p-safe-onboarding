@@ -1,13 +1,34 @@
 import type { Chain } from 'viem'
 
 import { OnboardingClient } from './core/onboarding-client'
-import type { DeploymentResult, OnboardingConfig, OnboardClientParams } from './core/types'
+import type {
+  DeploymentResult,
+  DeploySafeParams,
+  DeploySafeResult,
+  OnboardingConfig,
+  OnboardClientParams,
+  SetPermissionsParams,
+  SetPermissionsResult,
+  TokenTransfer
+} from './core/types'
+import type { TransferAssetParams, TransferAssetResult } from './core/types'
 import { loadEnv } from './config/env'
 import { createClientsFromPrivateKey } from './adapters'
 import * as constants from './constants'
 
 export { OnboardingClient, loadEnv, createClientsFromPrivateKey, constants }
-export type { DeploymentResult, OnboardingConfig, OnboardClientParams }
+export type {
+  DeploymentResult,
+  DeploySafeParams,
+  DeploySafeResult,
+  OnboardingConfig,
+  OnboardClientParams,
+  SetPermissionsParams,
+  SetPermissionsResult,
+  TokenTransfer,
+  TransferAssetParams,
+  TransferAssetResult
+}
 
 export const createOnboardingClientFromEnv = (params: {
   chain: Chain
@@ -35,4 +56,3 @@ export const createOnboardingClientFromEnv = (params: {
     p2pApiToken: env.P2P_API_TOKEN
   })
 }
-
