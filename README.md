@@ -48,8 +48,9 @@ async function main() {
 
   const { safeAddress } = await onboarding.deploySafe()
   const permissions = await onboarding.setPermissions({ safeAddress })
-  await onboarding.transferAsset({
-    address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  await onboarding.transferAssetFromCallerToSafe({
+    safeAddress,
+    assetAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     amount: 42_000_000n
   }) // repeat as needed
 
@@ -63,15 +64,27 @@ main().catch(console.error)
 
 ### Fund the Safe with ERC-20s
 
-Call `transferAsset` after the Safe exists; it performs a normal ERC-20 `transfer` from the owner wallet to the Safe (no allowance required). Invoke it multiple times for multiple tokens:
+Call `transferAssetFromCallerToSafe` after the Safe exists; it performs a normal ERC-20 `transfer` from the owner wallet to the Safe (no allowance required). Invoke it multiple times for multiple tokens:
 
 ```ts
-await onboarding.transferAsset({
-  address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+await onboarding.transferAssetFromCallerToSafe({
+  safeAddress: '0x2345CC21fd487B8Fcc2F632f3F4E8D37262a0634',
+  assetAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   amount: 42_000_000n
 })
-await onboarding.transferAsset({
-  address: '0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842',
+await onboarding.transferAssetFromCallerToSafe({
+  safeAddress: '0x2345CC21fd487B8Fcc2F632f3F4E8D37262a0634',
+  assetAddress: '0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842',
+  amount: '6000000000000000000'
+})
+```
+
+To pull funds back out, use `transferAssetFromSafeToSafeOwner`, which executes a Safe transaction transferring the token to the Safe owner:
+
+```ts
+await onboarding.transferAssetFromSafeToSafeOwner({
+  safeAddress: '0x2345CC21fd487B8Fcc2F632f3F4E8D37262a0634',
+  assetAddress: '0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842',
   amount: '6000000000000000000'
 })
 ```
@@ -106,7 +119,7 @@ const onboarding = new OnboardingClient({
 
 const { safeAddress } = await onboarding.deploySafe()
 await onboarding.setPermissions({ safeAddress })
-// await onboarding.transferAsset({ address: token, amount })
+// await onboarding.transferAssetFromCallerToSafe({ safeAddress, assetAddress: token, amount })
 
 // Optional overrides (use constants or your own)
 // const onboarding = new OnboardingClient({
@@ -126,7 +139,7 @@ npm run build
 ## Notes
 
 - The SDK assumes Safe v1.3 deployments. Override the configuration if you need different versions or custom deployments.
-- `deploySafe`, `setPermissions`, and `transferAsset` each execute live transactions; call `transferAsset` as many times as needed for multiple tokens. Ensure the wallet has enough funds to cover gas.
+- `deploySafe`, `setPermissions`, `transferAssetFromCallerToSafe`, and `transferAssetFromSafeToSafeOwner` each execute live transactions; call the transfer helpers as many times as needed for multiple tokens. Ensure the wallet has enough funds to cover gas.
 - `onboardClient` remains as a convenience wrapper that runs the same steps sequentially.
 - Until the P2P API is available, fee terms default to deposit `0` bps and profit share `9700` bps.
 - Transactions are executed sequentially; future iterations can batch Safe configuration via MultiSend.

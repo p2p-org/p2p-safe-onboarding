@@ -39,6 +39,19 @@ export interface TokenTransfer {
   amount: bigint | number | string
 }
 
+export interface TransferAssetFromCallerToSafeParams {
+  safeAddress?: Address
+  assetAddress: Address
+  amount: bigint | number | string
+}
+
+export interface TransferAssetFromSafeToOwnerParams {
+  safeAddress?: Address
+  assetAddress: Address
+  amount: bigint | number | string
+  ownerAddress?: Address
+}
+
 export interface DeploySafeParams {
   clientAddress?: Address
 }

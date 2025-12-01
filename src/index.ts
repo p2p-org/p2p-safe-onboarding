@@ -9,9 +9,11 @@ import type {
   OnboardClientParams,
   SetPermissionsParams,
   SetPermissionsResult,
-  TokenTransfer
+  TokenTransfer,
+  TransferAssetFromCallerToSafeParams,
+  TransferAssetFromSafeToOwnerParams
 } from './core/types'
-import type { TransferAssetParams, TransferAssetResult } from './core/types'
+import type { TransferAssetResult } from './core/types'
 import { loadEnv } from './config/env'
 import { createClientsFromPrivateKey } from './adapters'
 import * as constants from './constants'
@@ -26,7 +28,8 @@ export type {
   SetPermissionsParams,
   SetPermissionsResult,
   TokenTransfer,
-  TransferAssetParams,
+  TransferAssetFromCallerToSafeParams,
+  TransferAssetFromSafeToOwnerParams,
   TransferAssetResult
 }
 

@@ -18,7 +18,8 @@ import type {
   SetPermissionsParams,
   SetPermissionsResult,
   TokenTransfer,
-  TransferAssetParams,
+  TransferAssetFromCallerToSafeParams,
+  TransferAssetFromSafeToOwnerParams,
   TransferAssetResult
 } from './types'
 import { SafeTransactionOperation } from './types'
@@ -248,7 +249,9 @@ export class OnboardingClient {
     }
   }
 
-  async transferAsset(params: TransferAssetParams): Promise<TransferAssetResult> {
+  async transferAssetFromCallerToSafe(
+    params: TransferAssetFromCallerToSafeParams
+  ): Promise<TransferAssetResult> {
     const account = this.config.walletClient.account
     if (!account) {
       throw new Error('Wallet client must have an active account')
@@ -260,10 +263,10 @@ export class OnboardingClient {
     }
 
     const amount = this.normalizeTokenAmount(params.amount)
-    this.log(`➡️  Transferring token ${params.address} -> Safe ${safeAddress} amount=${amount}`)
+    this.log(`➡️  Transferring token ${params.assetAddress} -> Safe ${safeAddress} amount=${amount}`)
 
     const transactionHash = await this.config.walletClient.writeContract({
-      address: params.address,
+      address: params.assetAddress,
       abi: erc20Abi,
       functionName: 'transfer',
       args: [safeAddress, amount],
@@ -273,6 +276,53 @@ export class OnboardingClient {
 
     await this.config.publicClient.waitForTransactionReceipt({ hash: transactionHash })
     this.log(`✅  Transfer confirmed: ${transactionHash}`)
+
+    return { transactionHash }
+  }
+
+  async transferAssetFromSafeToSafeOwner(
+    params: TransferAssetFromSafeToOwnerParams
+  ): Promise<TransferAssetResult> {
+    const account = this.config.walletClient.account
+    if (!account) {
+      throw new Error('Wallet client must have an active account')
+    }
+
+    const safeAddress = params.safeAddress ?? this.lastSafeAddress
+    if (!safeAddress) {
+      throw new Error('Safe address is required; call deploySafe() first or provide safeAddress')
+    }
+
+    const ownerAddress = params.ownerAddress ?? (account.address as Address)
+    const amount = this.normalizeTokenAmount(params.amount)
+    this.log(
+      `➡️  Transferring token ${params.assetAddress} <- Safe ${safeAddress} to owner ${ownerAddress} amount=${amount}`
+    )
+
+    const transferData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [ownerAddress, amount]
+    })
+
+    const preparedTx = await prepareSafeTransaction({
+      publicClient: this.config.publicClient,
+      safeAddress,
+      to: params.assetAddress,
+      data: transferData,
+      value: 0n,
+      operation: SafeTransactionOperation.Call
+    })
+
+    const transactionHash = await executeSafeTransaction({
+      walletClient: this.config.walletClient,
+      publicClient: this.config.publicClient,
+      safeAddress,
+      transaction: preparedTx
+    })
+
+    await this.config.publicClient.waitForTransactionReceipt({ hash: transactionHash })
+    this.log(`✅  Safe -> owner transfer confirmed: ${transactionHash}`)
 
     return { transactionHash }
   }
@@ -296,7 +346,11 @@ export class OnboardingClient {
 
     const assetTransfers: Hex[] = []
     for (const transfer of params.tokenTransfers ?? []) {
-      const { transactionHash } = await this.transferAsset({ ...transfer, safeAddress })
+      const { transactionHash } = await this.transferAssetFromCallerToSafe({
+        assetAddress: transfer.address,
+        amount: transfer.amount,
+        safeAddress
+      })
       assetTransfers.push(transactionHash)
     }
 
