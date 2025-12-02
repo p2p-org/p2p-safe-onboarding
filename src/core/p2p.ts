@@ -4,7 +4,7 @@ import { p2pSuperformProxyFactoryAbi } from '../utils/abis'
 import type { FeeConfig } from './types'
 
 const FALLBACK_FEE_CONFIG: FeeConfig = {
-  clientBasisPointsOfDeposit: 0,
+  clientBasisPointsOfDeposit: 10000,
   clientBasisPointsOfProfit: 9700
 }
 
