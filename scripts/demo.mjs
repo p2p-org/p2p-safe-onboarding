@@ -12,7 +12,10 @@ const main = async () => {
   console.info('Starting onboarding flow on Base…')
 
   const safe = await onboarding.deploySafe()
-  const permissions = await onboarding.setPermissions({ safeAddress: safe.safeAddress })
+  const permissions = await onboarding.setPermissions({
+    safeAddress: safe.safeAddress,
+    tokensToApprove: [USDC_BASE]
+  })
   const usdcTransfer = await onboarding.transferAssetFromCallerToSafe({
     assetAddress: USDC_BASE,
     amount: 1_000_000n // 1 USDC (6 decimals)
