@@ -66,6 +66,7 @@ export interface SetPermissionsParams {
   safeAddress?: Address
   clientAddress?: Address
   multiSendCallOnlyAddress?: Address
+  tokensToApprove?: Address[]
 }
 
 export interface SetPermissionsResult {

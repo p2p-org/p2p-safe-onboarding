@@ -28,6 +28,7 @@ import { encodeMultiSendCallData } from '../utils/multisend'
 import * as constants from '../constants'
 
 const DEFAULT_ROLE_KEY = keccak256(stringToHex('P2P_SUPERFORM_ROLE')) as Hex
+const MAX_UINT256 = (1n << 256n) - 1n
 
 export class OnboardingClient {
   private readonly config: Required<
@@ -192,6 +193,13 @@ export class OnboardingClient {
 
     const roleKey = DEFAULT_ROLE_KEY as Hex
 
+    const tokensToApprove = params.tokensToApprove ?? []
+    if (tokensToApprove.length > 0) {
+      this.log(
+        `ℹ️  Adding ${tokensToApprove.length} token approval(s) to proxy ${predictedProxyAddress}`
+      )
+    }
+
     const permissionCalls = prepareRolesPermissions({
       rolesAddress,
       roleKey,
@@ -200,6 +208,17 @@ export class OnboardingClient {
       predictedProxyAddress,
       logger: this.log
     })
+
+    const approvalCalls: SafeContractCall[] = tokensToApprove.map((tokenAddress) => ({
+      to: tokenAddress,
+      value: 0n,
+      data: encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [predictedProxyAddress, MAX_UINT256]
+      }),
+      operation: SafeTransactionOperation.Call
+    }))
 
     const enableModuleCall: SafeContractCall = {
       to: safeAddress,
@@ -212,7 +231,7 @@ export class OnboardingClient {
       operation: SafeTransactionOperation.Call
     }
 
-    const batchedCalls = [deploymentCall, ...permissionCalls, enableModuleCall]
+    const batchedCalls = [deploymentCall, ...permissionCalls, ...approvalCalls, enableModuleCall]
     const encodedTransactions = encodeMultiSendCallData(batchedCalls)
     const multiSendData = encodeFunctionData({
       abi: multiSendCallOnlyAbi,
