@@ -119,6 +119,8 @@ const onboarding = new OnboardingClient({
 
 const { safeAddress } = await onboarding.deploySafe()
 await onboarding.setPermissions({ safeAddress })
+// optionally approve tokens for the proxy during setPermissions:
+// await onboarding.setPermissions({ safeAddress, tokensToApprove: [token1, token2] })
 // await onboarding.transferAssetFromCallerToSafe({ safeAddress, assetAddress: token, amount })
 
 // Optional overrides (use constants or your own)
